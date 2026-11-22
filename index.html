@@ -15,6 +15,10 @@
   .card .nm{font-size:13px;font-weight:700;margin-top:6px}
   .card.big{width:120px;border-color:#e0533d}
   .card.sq{border-color:#3b82f6}
+  #cards .allbtn{flex-basis:100%;display:flex;justify-content:center}
+  #cards .allbtn button{font-size:18px;background:#c9a227;color:#1b2a3a;font-weight:700}
+  .card{cursor:pointer;transition:transform .12s}
+  .card.on{transform:translateY(-8px);box-shadow:0 0 0 4px #ffd23f,0 8px 16px #0008}
   @keyframes pop{from{transform:translateY(20px) scale(.8);opacity:0}}
 </style>
 </head>
@@ -104,10 +108,20 @@ function draw(g) {
 function showCards(on) {
   const box = document.getElementById('cards'); box.innerHTML = '';
   if (!on) return;
+  const bar = document.createElement('div'); bar.className = 'allbtn';
+  const all = document.createElement('button'); all.textContent = '✅ Select all';
+  all.onclick = () => {
+    const cards = [...box.querySelectorAll('.card')];
+    const every = cards.every(c => c.classList.contains('on'));
+    cards.forEach(c => c.classList.toggle('on', !every));
+    all.textContent = every ? '✅ Select all' : '⬜ Clear all';
+  };
+  bar.appendChild(all); box.appendChild(bar);
   FLEET.forEach((u, i) => {
     const d = document.createElement('div'); d.className = 'card ' + (u.cls || '');
     d.style.animationDelay = (i * 0.04) + 's';
     d.innerHTML = `<div class="ic">${u.ic}</div><div class="nm">${u.nm}</div>`;
+    d.onclick = () => d.classList.toggle('on');
     box.appendChild(d);
   });
 }
