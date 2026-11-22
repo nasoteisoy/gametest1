@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gametest1</title>
+<style>
+  body{margin:0;background:#0b1d33;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;color:#fff}
+  canvas{image-rendering:pixelated;width:min(92vw,80vh);height:min(92vw,80vh);border:3px solid #fff3;border-radius:6px}
+  .bar{display:flex;gap:14px;align-items:center;margin:12px;font-size:28px}
+  button{font-size:28px;background:#1f6feb;border:0;border-radius:10px;color:#fff;padding:6px 16px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="bar"><span>🏝️ × <b id="count">9</b></span><button id="again" title="New map">🔄</button></div>
+<canvas id="map" width="100" height="100"></canvas>
+<script>
+const N = 100, ISLANDS = 9;
+const SEA = 0, LAND = 1;
+
+function makeGrid() {
+  const g = new Uint8Array(N * N);            // all sea
+  const cell = Math.floor(N / 3);             // 3x3 zones, one island per zone
+  for (let zy = 0; zy < 3; zy++) for (let zx = 0; zx < 3; zx++) {
+    const x0 = zx * cell + 3, y0 = zy * cell + 3;           // 3-square sea margin keeps islands apart
+    const x1 = (zx + 1) * cell - 3, y1 = (zy + 1) * cell - 3;
+    const cx = x0 + 6 + Math.floor(Math.random() * (x1 - x0 - 12));
+    const cy = y0 + 6 + Math.floor(Math.random() * (y1 - y0 - 12));
+    const target = 60 + Math.floor(Math.random() * 220);    // island size in squares
+    // grow one connected blob from the center
+    const frontier = [[cx, cy]]; g[cy * N + cx] = LAND; let size = 1;
+    while (size < target && frontier.length) {
+      const i = Math.floor(Math.random() * frontier.length);
+      const [x, y] = frontier[i];
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      const [dx, dy] = dirs[Math.floor(Math.random() * 4)];
+      const nx = x + dx, ny = y + dy;
+      if (nx < x0 || ny < y0 || nx >= x1 || ny >= y1) continue;
+      if (g[ny * N + nx] === SEA) { g[ny * N + nx] = LAND; frontier.push([nx, ny]); size++; }
+      else if (Math.random() < 0.02) frontier.splice(i, 1);
+    }
+  }
+  return g;
+}
+
+function countIslands(g) {                     // 4-direction flood fill
+  const seen = new Uint8Array(N * N); let count = 0;
+  for (let s = 0; s < N * N; s++) {
+    if (g[s] !== LAND || seen[s]) continue;
+    count++; const stack = [s]; seen[s] = 1;
+    while (stack.length) {
+      const p = stack.pop(), x = p % N, y = (p / N) | 0;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy, q = ny * N + nx;
+        if (nx >= 0 && ny >= 0 && nx < N && ny < N && g[q] === LAND && !seen[q]) { seen[q] = 1; stack.push(q); }
+      }
+    }
+  }
+  return count;
+}
+
+function draw(g) {
+  const ctx = document.getElementById('map').getContext('2d');
+  const img = ctx.createImageData(N, N);
+  for (let i = 0; i < N * N; i++) {
+    const land = g[i] === LAND;
+    const c = land ? [86, 176, 72] : [33, 110, 196];
+    img.data.set([...c, 255], i * 4);
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+function newMap() {
+  let g; do { g = makeGrid(); } while (countIslands(g) !== ISLANDS);
+  window.grid = g;                             // grid[y*100+x]: 0 = sea, 1 = land
+  document.getElementById('count').textContent = countIslands(g);
+  draw(g);
+}
+document.getElementById('again').onclick = newMap;
+newMap();
+</script>
+</body>
+</html>
