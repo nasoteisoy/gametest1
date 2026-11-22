@@ -6,14 +6,22 @@
 <title>gametest1</title>
 <style>
   body{margin:0;background:#0b1d33;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;color:#fff}
-  canvas{image-rendering:pixelated;width:min(92vw,80vh);height:min(92vw,80vh);border:3px solid #fff3;border-radius:6px}
+  canvas{cursor:pointer;width:min(92vw,80vh);height:min(92vw,80vh);border:3px solid #fff3;border-radius:6px}
   .bar{display:flex;gap:14px;align-items:center;margin:12px;font-size:28px}
   button{font-size:28px;background:#1f6feb;border:0;border-radius:10px;color:#fff;padding:6px 16px;cursor:pointer}
+  #cards{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:14px;max-width:min(92vw,900px)}
+  .card{width:96px;height:124px;background:linear-gradient(#fdf6e3,#e8dcc0);color:#1b2a3a;border-radius:12px;border:3px solid #c9a227;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 10px #0006;animation:pop .25s ease-out both}
+  .card .ic{font-size:44px;line-height:1.1}
+  .card .nm{font-size:13px;font-weight:700;margin-top:6px}
+  .card.big{width:120px;border-color:#e0533d}
+  .card.sq{border-color:#3b82f6}
+  @keyframes pop{from{transform:translateY(20px) scale(.8);opacity:0}}
 </style>
 </head>
 <body>
 <div class="bar"><span>🏝️ × <b id="count">9</b></span><button id="again" title="New map">🔄</button></div>
-<canvas id="map" width="100" height="100"></canvas>
+<canvas id="map" width="1000" height="1000"></canvas>
+<div id="cards"></div>
 <script>
 const N = 100, ISLANDS = 9;
 const SEA = 0, LAND = 1;
@@ -59,21 +67,63 @@ function countIslands(g) {                     // 4-direction flood fill
   return count;
 }
 
+const C = 10;                                  // pixels per square
+let fleet = null, selected = false;
+const FLEET = [                                // the fleet's cards
+  {ic:'🛳️', nm:'Carrier', cls:'big'},
+  {ic:'✈️', nm:'Fighters', cls:'sq'}, {ic:'✈️', nm:'Fighters', cls:'sq'},
+  {ic:'💣', nm:'Bombers', cls:'sq'},
+  {ic:'🚀', nm:'Torpedo', cls:'sq'},
+  {ic:'🔭', nm:'Recon', cls:'sq'}, {ic:'🔭', nm:'Recon', cls:'sq'},
+  {ic:'🚢', nm:'Destroyer'}, {ic:'🚢', nm:'Destroyer'},
+];
+
+function placeFleet(g) {                       // a sea square with sea all around it
+  const ok = (x, y) => { for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++) {
+    const nx=x+dx, ny=y+dy; if (nx<0||ny<0||nx>=N||ny>=N||g[ny*N+nx]===LAND) return false; } return true; };
+  let x, y; do { x = 5 + Math.floor(Math.random()*(N-10)); y = 5 + Math.floor(Math.random()*(N-10)); } while (!ok(x, y));
+  return {x, y};
+}
+
 function draw(g) {
   const ctx = document.getElementById('map').getContext('2d');
-  const img = ctx.createImageData(N, N);
   for (let i = 0; i < N * N; i++) {
-    const land = g[i] === LAND;
-    const c = land ? [86, 176, 72] : [33, 110, 196];
-    img.data.set([...c, 255], i * 4);
+    ctx.fillStyle = g[i] === LAND ? '#56b048' : '#216ec4';
+    ctx.fillRect((i % N) * C, ((i / N) | 0) * C, C, C);
   }
-  ctx.putImageData(img, 0, 0);
+  if (fleet) {                                 // the fleet: one symbol on its square
+    const px = fleet.x * C + C / 2, py = fleet.y * C + C / 2;
+    ctx.beginPath(); ctx.arc(px, py, 13, 0, Math.PI * 2);
+    ctx.fillStyle = selected ? '#ffd23f' : '#ffffff'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = '#0b1d33'; ctx.stroke();
+    ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⚓', px, py + 1);
+  }
 }
+
+function showCards(on) {
+  const box = document.getElementById('cards'); box.innerHTML = '';
+  if (!on) return;
+  FLEET.forEach((u, i) => {
+    const d = document.createElement('div'); d.className = 'card ' + (u.cls || '');
+    d.style.animationDelay = (i * 0.04) + 's';
+    d.innerHTML = `<div class="ic">${u.ic}</div><div class="nm">${u.nm}</div>`;
+    box.appendChild(d);
+  });
+}
+
+document.getElementById('map').addEventListener('click', e => {
+  const r = e.target.getBoundingClientRect();
+  const x = Math.floor((e.clientX - r.left) / r.width * N), y = Math.floor((e.clientY - r.top) / r.height * N);
+  selected = fleet && Math.abs(x - fleet.x) <= 1 && Math.abs(y - fleet.y) <= 1;  // a little slack for fingers
+  showCards(selected); draw(window.grid);
+});
 
 function newMap() {
   let g; do { g = makeGrid(); } while (countIslands(g) !== ISLANDS);
   window.grid = g;                             // grid[y*100+x]: 0 = sea, 1 = land
   document.getElementById('count').textContent = countIslands(g);
+  fleet = placeFleet(g); selected = false; showCards(false);
   draw(g);
 }
 document.getElementById('again').onclick = newMap;
