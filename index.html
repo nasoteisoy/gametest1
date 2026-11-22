@@ -18,6 +18,7 @@
   #cards .allbtn{flex-basis:100%;display:flex;justify-content:center}
   #cards .allbtn button{font-size:18px;background:#c9a227;color:#1b2a3a;font-weight:700}
   .card{cursor:pointer;transition:transform .12s}
+  .card .sp{font-size:12px;margin-top:4px;background:#1b2a3a;color:#ffd23f;border-radius:8px;padding:1px 6px}
   .card.on{transform:translateY(-8px);box-shadow:0 0 0 4px #ffd23f,0 8px 16px #0008}
   @keyframes pop{from{transform:translateY(20px) scale(.8);opacity:0}}
 </style>
@@ -72,14 +73,14 @@ function countIslands(g) {                     // 4-direction flood fill
 }
 
 const C = 10;                                  // pixels per square
-let fleet = null, selected = false;
+let fleet = null, selected = false, range = 0;   // range: squares the selected cards can move
 const FLEET = [                                // the fleet's cards
-  {ic:'🛳️', nm:'Carrier', cls:'big'},
-  {ic:'✈️', nm:'Fighters', cls:'sq'}, {ic:'✈️', nm:'Fighters', cls:'sq'},
-  {ic:'💣', nm:'Bombers', cls:'sq'},
-  {ic:'🚀', nm:'Torpedo', cls:'sq'},
-  {ic:'🔭', nm:'Recon', cls:'sq'}, {ic:'🔭', nm:'Recon', cls:'sq'},
-  {ic:'🚢', nm:'Destroyer'}, {ic:'🚢', nm:'Destroyer'},
+  {ic:'🛳️', nm:'Carrier', cls:'big', sp:3},
+  {ic:'✈️', nm:'Fighters', cls:'sq', sp:12}, {ic:'✈️', nm:'Fighters', cls:'sq', sp:12},
+  {ic:'💣', nm:'Bombers', cls:'sq', sp:9},
+  {ic:'🚀', nm:'Torpedo', cls:'sq', sp:8},
+  {ic:'🔭', nm:'Recon', cls:'sq', sp:15}, {ic:'🔭', nm:'Recon', cls:'sq', sp:15},
+  {ic:'🚢', nm:'Destroyer', sp:4}, {ic:'🚢', nm:'Destroyer', sp:4},
 ];
 
 function placeFleet(g) {                       // a sea square with sea all around it
@@ -95,6 +96,14 @@ function draw(g) {
     ctx.fillStyle = g[i] === LAND ? '#56b048' : '#216ec4';
     ctx.fillRect((i % N) * C, ((i / N) | 0) * C, C, C);
   }
+  if (fleet && selected && range) {            // movement circle (slowest selected card)
+    const px = fleet.x * C + C / 2, py = fleet.y * C + C / 2;
+    ctx.beginPath(); ctx.arc(px, py, range * C, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,210,63,0.18)'; ctx.fill();
+    ctx.setLineDash([10, 8]); ctx.lineWidth = 3; ctx.strokeStyle = '#ffd23f'; ctx.stroke(); ctx.setLineDash([]);
+    ctx.font = 'bold 20px sans-serif'; ctx.fillStyle = '#ffd23f'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText('🏃 ' + range, px, py - range * C - 4);
+  }
   if (fleet) {                                 // the fleet: one symbol on its square
     const px = fleet.x * C + C / 2, py = fleet.y * C + C / 2;
     ctx.beginPath(); ctx.arc(px, py, 13, 0, Math.PI * 2);
@@ -105,7 +114,14 @@ function draw(g) {
   }
 }
 
+function updateRange() {                       // slowest selected card sets the circle
+  const sp = [...document.querySelectorAll('.card.on')].map(c => +c.dataset.sp);
+  range = sp.length ? Math.min(...sp) : 0;
+  draw(window.grid);
+}
+
 function showCards(on) {
+  range = 0;
   const box = document.getElementById('cards'); box.innerHTML = '';
   if (!on) return;
   const bar = document.createElement('div'); bar.className = 'allbtn';
@@ -114,6 +130,7 @@ function showCards(on) {
     const cards = [...box.querySelectorAll('.card')];
     const every = cards.every(c => c.classList.contains('on'));
     cards.forEach(c => c.classList.toggle('on', !every));
+    updateRange();
     all.textContent = every ? '✅ Select all' : '⬜ Clear all';
   };
   bar.appendChild(all); box.appendChild(bar);
@@ -121,7 +138,9 @@ function showCards(on) {
     const d = document.createElement('div'); d.className = 'card ' + (u.cls || '');
     d.style.animationDelay = (i * 0.04) + 's';
     d.innerHTML = `<div class="ic">${u.ic}</div><div class="nm">${u.nm}</div>`;
-    d.onclick = () => d.classList.toggle('on');
+    d.dataset.sp = u.sp;
+    d.innerHTML += `<div class="sp">🏃 ${u.sp}</div>`;
+    d.onclick = () => { d.classList.toggle('on'); updateRange(); };
     box.appendChild(d);
   });
 }
