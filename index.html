@@ -87,6 +87,11 @@ const FLEET = [                                // the fleet's cards
   {ic:'🚢', nm:'Destroyer', sp:4}, {ic:'🚢', nm:'Destroyer', sp:4},
 ];
 
+const SHIPS = [                                // ships drawn on the map (offsets in squares)
+  {ic:'🛳️', dx:0, dy:0, big:true},
+  {ic:'🚢', dx:-2, dy:1}, {ic:'🚢', dx:2, dy:1},
+];
+
 function placeFleet(g) {                       // a sea square with sea all around it
   const ok = (x, y) => { for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++) {
     const nx=x+dx, ny=y+dy; if (nx<0||ny<0||nx>=N||ny>=N||g[ny*N+nx]===LAND) return false; } return true; };
@@ -108,13 +113,15 @@ function draw(g) {
     ctx.font = 'bold 20px sans-serif'; ctx.fillStyle = '#ffd23f'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
     ctx.fillText('🏃 ' + range, px, py - range * C - 4);
   }
-  if (fleet) {                                 // the fleet: one symbol on its square
-    const px = fleet.x * C + C / 2, py = fleet.y * C + C / 2;
-    ctx.beginPath(); ctx.arc(px, py, 13, 0, Math.PI * 2);
-    ctx.fillStyle = selected ? '#ffd23f' : '#ffffff'; ctx.fill();
-    ctx.lineWidth = 3; ctx.strokeStyle = '#0b1d33'; ctx.stroke();
-    ctx.font = '18px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('⚓', px, py + 1);
+  if (fleet) {                                 // one icon per ship, grouped around the fleet square
+    for (const sh of SHIPS) {
+      const px = (fleet.x + sh.dx) * C + C / 2, py = (fleet.y + sh.dy) * C + C / 2, r = sh.big ? 12 : 9;
+      ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI * 2);
+      ctx.fillStyle = selected ? '#ffd23f' : '#ffffff'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = sh.big ? '#e0533d' : '#0b1d33'; ctx.stroke();
+      ctx.font = (sh.big ? 16 : 12) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(sh.ic, px, py + 1);
+    }
   }
 }
 
@@ -196,7 +203,7 @@ document.getElementById('map').addEventListener('click', e => {
   if (dragged) { dragged = false; return; }    // a drag or pinch is not a tap
   const r = e.target.getBoundingClientRect();
   const x = Math.floor((e.clientX - r.left) / r.width * N), y = Math.floor((e.clientY - r.top) / r.height * N);
-  selected = fleet && Math.abs(x - fleet.x) <= 1 && Math.abs(y - fleet.y) <= 1;  // a little slack for fingers
+  selected = !!fleet && SHIPS.some(sh => Math.abs(x - fleet.x - sh.dx) <= 1 && Math.abs(y - fleet.y - sh.dy) <= 1);  // tap any ship
   showCards(selected); draw(window.grid);
 });
 
