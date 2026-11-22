@@ -6,7 +6,10 @@
 <title>gametest1</title>
 <style>
   body{margin:0;background:#0b1d33;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,sans-serif;color:#fff}
-  canvas{cursor:pointer;width:min(92vw,80vh);height:min(92vw,80vh);border:3px solid #fff3;border-radius:6px}
+  #view{position:relative;overflow:hidden;width:min(92vw,80vh);height:min(92vw,80vh);border:3px solid #fff3;border-radius:6px;touch-action:none}
+  canvas{cursor:pointer;width:100%;height:100%;display:block;transform-origin:0 0}
+  .zoom{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px;z-index:2}
+  .zoom button{font-size:22px;width:44px;height:44px;padding:0;background:#0b1d33cc}
   .bar{display:flex;gap:14px;align-items:center;margin:12px;font-size:28px}
   button{font-size:28px;background:#1f6feb;border:0;border-radius:10px;color:#fff;padding:6px 16px;cursor:pointer}
   #cards{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:14px;max-width:min(92vw,900px)}
@@ -25,7 +28,8 @@
 </head>
 <body>
 <div class="bar"><span>🏝️ × <b id="count">9</b></span><button id="again" title="New map">🔄</button></div>
-<canvas id="map" width="1000" height="1000"></canvas>
+<div id="view"><canvas id="map" width="1000" height="1000"></canvas>
+<div class="zoom"><button id="zin">➕</button><button id="zout">➖</button><button id="zreset">⤢</button></div></div>
 <div id="cards"></div>
 <script>
 const N = 100, ISLANDS = 9;
@@ -145,7 +149,51 @@ function showCards(on) {
   });
 }
 
+// ---- zoom and pan ----
+const view = document.getElementById('view'), cv = document.getElementById('map');
+let z = 1, tx = 0, ty = 0, dragged = false;
+function applyView() {
+  const w = view.clientWidth, h = view.clientHeight;
+  z = Math.min(8, Math.max(1, z));
+  tx = Math.min(0, Math.max(w - w * z, tx)); ty = Math.min(0, Math.max(h - h * z, ty));
+  cv.style.transform = `translate(${tx}px,${ty}px) scale(${z})`;
+}
+function zoomAt(f, cx, cy) {                    // keep point (cx,cy) in view fixed
+  const nz = Math.min(8, Math.max(1, z * f)); const k = nz / z;
+  tx = cx - (cx - tx) * k; ty = cy - (cy - ty) * k; z = nz; applyView();
+}
+const mid = () => [view.clientWidth / 2, view.clientHeight / 2];
+document.getElementById('zin').onclick = e => { e.stopPropagation(); zoomAt(1.6, ...mid()); };
+document.getElementById('zout').onclick = e => { e.stopPropagation(); zoomAt(1 / 1.6, ...mid()); };
+document.getElementById('zreset').onclick = e => { e.stopPropagation(); z = 1; tx = ty = 0; applyView(); };
+view.addEventListener('wheel', e => {
+  e.preventDefault(); const r = view.getBoundingClientRect();
+  zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top);
+}, {passive: false});
+const ptrs = new Map(); let pinch0 = 0, start = null;
+view.addEventListener('pointerdown', e => {
+  if (e.target.closest('.zoom')) return;
+  ptrs.set(e.pointerId, [e.clientX, e.clientY]); dragged = false; start = [e.clientX, e.clientY];
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = Math.hypot(a[0] - b[0], a[1] - b[1]); }
+});
+view.addEventListener('pointermove', e => {
+  if (!ptrs.has(e.pointerId)) return;
+  const prev = ptrs.get(e.pointerId); ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (Math.hypot(e.clientX - start[0], e.clientY - start[1]) > 6) dragged = true;
+  if (ptrs.size === 1) { tx += e.clientX - prev[0]; ty += e.clientY - prev[1]; applyView(); }
+  else if (ptrs.size === 2) {
+    const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const r = view.getBoundingClientRect();
+    if (pinch0) zoomAt(d / pinch0, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top);
+    pinch0 = d; dragged = true;
+  }
+});
+const up = e => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch0 = 0; };
+view.addEventListener('pointerup', up); view.addEventListener('pointercancel', up);
+window.addEventListener('resize', applyView);
+
 document.getElementById('map').addEventListener('click', e => {
+  if (dragged) { dragged = false; return; }    // a drag or pinch is not a tap
   const r = e.target.getBoundingClientRect();
   const x = Math.floor((e.clientX - r.left) / r.width * N), y = Math.floor((e.clientY - r.top) / r.height * N);
   selected = fleet && Math.abs(x - fleet.x) <= 1 && Math.abs(y - fleet.y) <= 1;  // a little slack for fingers
